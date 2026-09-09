@@ -1,0 +1,65 @@
+name: xenopulse
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xeno}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xeno}
+      POSTGRES_DB: ${POSTGRES_DB:-xenopulse}
+      # keep the planner honest on a small demo box
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "max_parallel_workers_per_gather=2"
+      - "-c"
+      - "track_io_timing=on"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - ./db:/db:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xeno} -d ${POSTGRES_DB:-xenopulse}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xeno}:${POSTGRES_PASSWORD:-xeno}@db:5432/${POSTGRES_DB:-xenopulse}
+      DATABASE_URL_RO: postgresql://xeno_readonly:${READONLY_PASSWORD:-xeno_readonly_pw}@db:5432/${POSTGRES_DB:-xenopulse}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-sonnet-5}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
+      QUERY_ROW_LIMIT: ${QUERY_ROW_LIMIT:-1000}
+      STATEMENT_TIMEOUT_MS: ${STATEMENT_TIMEOUT_MS:-8000}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
