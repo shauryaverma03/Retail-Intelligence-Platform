@@ -5,11 +5,11 @@
 -- Gap-fills months with zero orders so the chart has no holes, and adds
 -- month-over-month growth via LAG().
 WITH months AS (
-    SELECT date_trunc('month', CURRENT_DATE) - (n || ' months')::interval AS month_start
+    SELECT (date_trunc('month', CURRENT_DATE) - (n || ' months')::interval)::date AS month_start
     FROM generate_series(0, 17) AS n
 ),
 monthly AS (
-    SELECT date_trunc('month', o.order_date) AS month_start,
+    SELECT date_trunc('month', o.order_date)::date AS month_start,
            sum(o.net_amount)                 AS net_revenue,
            count(*)                          AS orders,
            count(DISTINCT o.customer_id)     AS buyers

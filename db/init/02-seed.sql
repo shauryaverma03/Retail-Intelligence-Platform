@@ -1,2 +1,2 @@
-\echo '>> XenoPulse: seeding synthetic data (this takes ~20-40s)'
+\echo '>> XenoPulse: seeding synthetic data (~1-3 min; grab a coffee)'
 \i /db/seed.sql

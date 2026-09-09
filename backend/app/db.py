@@ -24,7 +24,13 @@ app_pool: ConnectionPool = ConnectionPool(
     min_size=1,
     max_size=8,
     max_idle=60,
-    kwargs={"row_factory": dict_row, "application_name": "xenopulse-app"},
+    kwargs={
+        "row_factory": dict_row,
+        "application_name": "xenopulse-app",
+        # safety net so a pathological trusted query can't hang a worker forever
+        # (generous: perf-lab CREATE INDEX on the big table must fit comfortably)
+        "options": "-c statement_timeout=120000",
+    },
     open=False,
 )
 
@@ -110,11 +116,13 @@ def run_readonly(sql: str, max_rows: int) -> ReadOnlyResult:
     timeout, and it rolls the transaction back no matter what.
     """
     settings = get_settings()
+    timeout_ms = int(settings.statement_timeout_ms)
     with ro_pool.connection() as conn:
         conn.autocommit = False
         with conn.cursor() as cur:
-            cur.execute("SET LOCAL statement_timeout = %s", (settings.statement_timeout_ms,))
+            # SET does not accept bind parameters; timeout_ms is an int from config.
             cur.execute("SET TRANSACTION READ ONLY")
+            cur.execute(f"SET LOCAL statement_timeout = {timeout_ms}")
             start = time.perf_counter()
             cur.execute(sql)
             rows = cur.fetchmany(max_rows + 1) if cur.description else []
@@ -131,12 +139,13 @@ def run_readonly(sql: str, max_rows: int) -> ReadOnlyResult:
 def explain_readonly(sql: str, analyze: bool = True) -> dict[str, Any]:
     """Return the JSON query plan for validated SELECT SQL (read-only pool)."""
     settings = get_settings()
+    timeout_ms = int(settings.explain_timeout_ms)
     opts = "ANALYZE, BUFFERS, VERBOSE, TIMING, FORMAT JSON" if analyze else "VERBOSE, FORMAT JSON"
     with ro_pool.connection() as conn:
         conn.autocommit = False
         with conn.cursor() as cur:
-            cur.execute("SET LOCAL statement_timeout = %s", (settings.explain_timeout_ms,))
             cur.execute("SET TRANSACTION READ ONLY")
+            cur.execute(f"SET LOCAL statement_timeout = {timeout_ms}")
             cur.execute(f"EXPLAIN ({opts}) {sql}")
             plan = cur.fetchone()
         conn.rollback()

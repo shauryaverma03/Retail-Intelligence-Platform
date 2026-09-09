@@ -121,7 +121,7 @@ SCENARIOS: dict[str, Scenario] = {
         title="B-tree index on a high-selectivity filter",
         category="Indexing",
         problem=(
-            "Conversion revenue by campaign filters campaign_events (~2M rows) on "
+            "Conversion revenue by campaign filters campaign_events (~1.4M rows) on "
             "event_type='convert' plus a time range. Without a supporting index the "
             "planner has no choice but a full sequential scan."
         ),

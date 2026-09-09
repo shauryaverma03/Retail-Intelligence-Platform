@@ -18,6 +18,8 @@ services:
       - "-c"
       - "max_parallel_workers_per_gather=2"
       - "-c"
+      - "max_wal_size=2GB"          # fewer checkpoints during the bulk seed
+      - "-c"
       - "track_io_timing=on"
     volumes:
       - pgdata:/var/lib/postgresql/data

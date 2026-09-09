@@ -33,17 +33,34 @@ _DISCLAIMER = (
 # --------------------------------------------------------------------------
 # Rule-based fallback (works with zero external dependencies)
 # --------------------------------------------------------------------------
+# Order matters: the campaign-by-segment rule must beat the generic RFM rule,
+# and the generic revenue-trend rule is last so more specific ones win.
 _RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\b(rfm|segment(ation)?)\b", re.I), "02_rfm_segments"),
-    (re.compile(r"\bcohort\b|\bretention\b", re.I), "03_cohort_retention"),
-    (re.compile(r"at[- ]risk|laps(e|ing)|win[- ]?back", re.I), "04_at_risk_customers"),
-    (re.compile(r"\bfunnel\b|\broas\b|conversion rate|campaign.*perform", re.I), "05_campaign_funnel"),
-    (re.compile(r"campaign.*segment|segment.*campaign", re.I), "06_campaign_perf_by_segment"),
-    (re.compile(r"repeat.*(rate|purchase)|repeat buyer", re.I), "07_repeat_purchase_rate"),
-    (re.compile(r"top .*product|best[- ]sell|pareto|80/20", re.I), "08_top_products_pareto"),
-    (re.compile(r"new vs returning|returning revenue|first order revenue", re.I), "09_new_vs_returning_revenue"),
-    (re.compile(r"inactiv|churn|dormant", re.I), "10_inactivity_churn"),
-    (re.compile(r"revenue.*(trend|month)|monthly revenue|sales trend", re.I), "01_revenue_trend"),
+    (re.compile(r"campaign.*segment|segment.*campaign|which segment.*(convert|campaign)", re.I),
+     "06_campaign_perf_by_segment"),
+    (re.compile(r"\bcohort\b|cohort retention|retention by (month|cohort)", re.I),
+     "03_cohort_retention"),
+    (re.compile(r"at[- ]?risk|laps(e|ed|ing)|win[- ]?back|about to churn|revenue at risk", re.I),
+     "04_at_risk_customers"),
+    (re.compile(r"\bfunnel\b|\broas\b|return on ad ?spend|ad spend|conversion rate|"
+                r"campaign.*(perform|roi|revenue|best|effective)|best.*campaign|"
+                r"which campaign", re.I),
+     "05_campaign_funnel"),
+    (re.compile(r"\b(rfm)\b|segment(ation)?|customer segment|break ?down.*segment", re.I),
+     "02_rfm_segments"),
+    (re.compile(r"repeat.*(rate|purchase|buy)|repeat buyer|buy again|second (order|purchase)|"
+                r"channel.*repeat|repeat.*channel", re.I),
+     "07_repeat_purchase_rate"),
+    (re.compile(r"top .*(product|seller|sku)|best[- ]?sell|pareto|80/20|product concentration", re.I),
+     "08_top_products_pareto"),
+    (re.compile(r"new vs returning|returning (revenue|customer)|first[- ]order revenue|"
+                r"new customer revenue", re.I),
+     "09_new_vs_returning_revenue"),
+    (re.compile(r"inactiv|\bchurn\b|dormant|gone quiet|recency bucket", re.I),
+     "10_inactivity_churn"),
+    (re.compile(r"revenue.*(trend|month|over time|by month)|monthly revenue|sales trend|"
+                r"revenue growth|mom growth", re.I),
+     "01_revenue_trend"),
 ]
 
 _INLINE: list[tuple[re.Pattern[str], str]] = [

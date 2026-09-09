@@ -130,11 +130,11 @@ def _revenue_trend() -> list[dict[str, Any]]:
     return fetch_all(
         """
         WITH months AS (
-            SELECT date_trunc('month', CURRENT_DATE) - (n || ' months')::interval AS m
+            SELECT (date_trunc('month', CURRENT_DATE) - (n || ' months')::interval)::date AS m
             FROM generate_series(0, 11) n
         ),
         rev AS (
-            SELECT date_trunc('month', order_date) AS m,
+            SELECT date_trunc('month', order_date)::date AS m,
                    sum(net_amount) AS net_revenue,
                    count(*) AS orders
             FROM orders

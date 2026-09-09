@@ -158,17 +158,17 @@ Seven related tables (`customers`, `products`, `campaigns`, `orders`,
 `order_items`, `campaign_events`, `etl_runs`) plus an optional monthly
 range-partitioned `campaign_events_part`.
 
-Default seed volume (tuned so index / join / filter choices produce measurable
-differences):
+Default seed volume (sized so index / join / filter choices produce measurable
+10×–500× differences, while still seeding in ~1–3 min):
 
 | table | rows |
 |---|---:|
 | customers | ~60,000 |
 | products | 2,000 |
 | campaigns | 48 |
-| orders | ~410,000 |
-| order_items | ~1,230,000 |
-| campaign_events | ~2,050,000 |
+| orders | ~115,000 |
+| order_items | ~345,000 |
+| campaign_events | ~1,450,000 |
 
 The seed is **pure set-based SQL** (`generate_series`) with a fixed
 `setseed(0.42)` — reproducible and fast. It deliberately injects a few duplicate

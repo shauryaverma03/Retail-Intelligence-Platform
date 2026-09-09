@@ -9,8 +9,8 @@ change helps and what to look for in the plan.
 > before→after transition). Absolute timings depend on your hardware, cache
 > state and seed volume — read them from the Lab, not from here.
 
-Common setup: default seed (~2M `campaign_events`, ~410k `orders`,
-~1.23M `order_items`).
+Common setup: default seed (~1.45M `campaign_events`, ~115k `orders`,
+~345k `order_items`).
 
 ---
 
@@ -79,7 +79,7 @@ ORDER BY revenue DESC;
 HashAggregate
   ->  Hash Join  (oi.product_id = p.product_id)
         ->  Hash Join  (oi.order_id = o.order_id)
-              ->  Seq Scan on order_items oi          -- all ~1.23M rows materialised
+              ->  Seq Scan on order_items oi          -- the whole table materialised
               ->  Hash
                     ->  Seq Scan on orders o
                           Filter: (to_char(order_date, ...) >= ... )   -- index unusable
@@ -216,7 +216,7 @@ GROUP BY 1 ORDER BY 1;
 **Unpartitioned** — one relation, whole thing scanned/filtered:
 
 ```
-Seq Scan on campaign_events   (Rows Removed by Filter: most of ~2M)
+Seq Scan on campaign_events   (Rows Removed by Filter: most of ~1.45M)
 ```
 
 **Partitioned** — planner keeps only the June 2024 partition:

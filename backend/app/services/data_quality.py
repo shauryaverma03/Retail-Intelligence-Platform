@@ -14,6 +14,7 @@ from ..db import fetch_all, fetch_one
 
 def _check(cur_id, title, category, severity, sql, threshold, status_key="metric",
            detail_sql=None):
+    """Hard check: status = pass if metric <= threshold else fail."""
     row = fetch_one(sql) or {}
     metric = row.get(status_key)
     metric = 0 if metric is None else metric
@@ -31,28 +32,51 @@ def _check(cur_id, title, category, severity, sql, threshold, status_key="metric
     }
 
 
+def _pct_check(cur_id, title, category, severity, sql,
+               warn_pct, fail_pct, pct_key="pct_of_customers"):
+    """Completeness check graded on a percentage: pass < warn_pct <= warn < fail_pct <= fail."""
+    row = fetch_one(sql) or {}
+    pct = float(row.get(pct_key) or 0)
+    if pct >= fail_pct:
+        status = "fail"
+    elif pct >= warn_pct:
+        status = "warn"
+    else:
+        status = "pass"
+    return {
+        "id": cur_id,
+        "title": title,
+        "category": category,
+        "severity": severity,
+        "metric": row.get("metric", 0),
+        "threshold": f"warn >= {warn_pct}%, fail >= {fail_pct}%",
+        "status": status,
+        "detail": [row],
+    }
+
+
 def run_all_checks() -> dict[str, Any]:
     started = time.perf_counter()
     checks: list[dict[str, Any]] = []
 
-    # 1. Missing values -----------------------------------------------------
-    checks.append(_check(
+    # 1. Missing values (graded on % -- some sparsity is normal) ---------------
+    checks.append(_pct_check(
         "missing_customer_email", "Customers missing email", "completeness", "medium",
         """
         SELECT count(*) AS metric,
                round(100.0 * count(*) / (SELECT count(*) FROM customers), 2) AS pct_of_customers
         FROM customers WHERE email IS NULL OR email = ''
         """,
-        threshold=0,
+        warn_pct=2.0, fail_pct=20.0,
     ))
-    checks.append(_check(
+    checks.append(_pct_check(
         "missing_customer_birth_year", "Customers missing birth year", "completeness", "low",
         """
         SELECT count(*) AS metric,
                round(100.0 * count(*) / (SELECT count(*) FROM customers), 2) AS pct_of_customers
         FROM customers WHERE birth_year IS NULL
         """,
-        threshold=0,
+        warn_pct=5.0, fail_pct=40.0,
     ))
     checks.append(_check(
         "orders_zero_amount", "Completed orders with zero net amount", "validity", "high",
@@ -204,12 +228,14 @@ def run_all_checks() -> dict[str, Any]:
             "passed": passed,
             "failed": failed_n,
             "warnings": warned,
-            "health_score": round(100.0 * passed / len(checks), 1),
+            # warnings count as half credit
+            "health_score": round(100.0 * (passed + 0.5 * warned) / len(checks), 1),
         },
         "checks": checks,
         "note": (
-            "The synthetic seed deliberately injects a small number of duplicate "
-            "customer emails and duplicate orders so these checks have something "
-            "to catch."
+            "Some checks fail on purpose: the synthetic seed injects duplicate "
+            "customer emails and duplicate orders, and seeds one failed ETL run, "
+            "so the dashboard has real issues to surface (a always-green data-"
+            "quality page would not be a useful demo)."
         ),
     }
