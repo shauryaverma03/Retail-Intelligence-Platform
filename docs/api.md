@@ -199,6 +199,47 @@ Failure modes: `{"ok": false, "error": "Could not map this question ..."}` or
 
 ---
 
+## Session (anonymous, cookie-based)
+
+All endpoints read/set the `xeno_session` cookie: `<session_id>.<hmac-sha256>`,
+HttpOnly, `SameSite=Lax`, `Secure` off by default (set `SESSION_COOKIE_SECURE=true`
+behind HTTPS), 30-day TTL. No login, no personal data. Send `credentials:
+"include"` (the frontend does).
+
+### `GET /api/session`
+Loads or creates the caller's session; refreshes `last_seen_at` and the cookie.
+```jsonc
+{
+  "session_id": "T0QCe…", "short_id": "T0QCeRmk",
+  "created_at": "...", "last_seen_at": "...",
+  "tour_completed": false, "preferences": {}, "request_count": 2, "is_new": true,
+  "recent_queries": [
+    { "id": 12, "sql": "WITH pc AS (...)", "source": "catalog",
+      "row_count": 5, "execution_ms": 41.2, "ok": true, "created_at": "..." }
+  ],
+  "cookie": { "name": "xeno_session", "httponly": true, "samesite": "lax",
+              "secure": false, "ttl_days": 30, "signed": "HMAC-SHA256" }
+}
+```
+
+### `POST /api/session/tour`
+Body `{ "completed": true }` → `{ "session_id": "...", "tour_completed": true }`.
+
+### `PATCH /api/session/preferences`
+Body `{ "patch": { "lastPage": "/performance" } }` → `{ "preferences": { ... } }`
+(shallow-merged into the stored JSON).
+
+### `GET /api/session/queries`
+`{ "queries": [ ...recent SQL Workspace runs for this session... ] }`
+
+### `DELETE /api/session`
+Deletes the row and clears the cookie → `{ "ok": true, "cleared": "T0QCeRmk" }`.
+
+`POST /api/workspace/run` also depends on the session — every run (or rejection)
+is appended to `session_queries`, capped at `SESSION_QUERY_HISTORY` (25).
+
+---
+
 ## Recommendations
 
 ### `GET /api/recommendations`

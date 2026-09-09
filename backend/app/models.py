@@ -68,3 +68,12 @@ class AskResponse(BaseModel):
 # --- Performance Lab --------------------------------------------------------
 class BenchmarkRequest(BaseModel):
     scenario_id: str
+
+
+# --- Session --------------------------------------------------------
+class TourState(BaseModel):
+    completed: bool = True
+
+
+class PreferencesPatch(BaseModel):
+    patch: dict[str, Any] = Field(default_factory=dict)

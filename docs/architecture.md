@@ -23,7 +23,7 @@ flowchart TB
   subgraph BE["Backend — FastAPI"]
     MW["CORS + global exception handler"]
     subgraph RT["routers/"]
-      d[dashboard] & w[workspace] & pf[performance] & cu[customers] & ai[ai] & dq[data-quality] & rc[recommendations] & mt[meta]
+      d[dashboard] & w[workspace] & pf[performance] & cu[customers] & ai[ai] & dq[data-quality] & rc[recommendations] & mt[meta] & se[session]
     end
     subgraph SV["services/"]
       m[metrics] & pl[perf_lab] & aa[ai_analyst] & dqs[data_quality] & rs[recommendations]
@@ -75,6 +75,15 @@ optional `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` on the same pool.
 `restore` (recreate production index) → parse both plans → return the
 comparison. A process-wide lock serialises benchmark runs so concurrent DDL
 can't collide.
+
+### Session
+Every route can depend on `session.current_session` (a FastAPI dependency): it
+reads the `xeno_session` cookie, verifies the HMAC, `UPDATE … RETURNING` (or
+`INSERT` on first visit) the `sessions` row, refreshes the cookie, and returns a
+`Session`. `session_svc.ensure_tables()` runs on startup so existing databases
+get the `sessions` / `session_queries` tables without a migration. The SQL
+Workspace calls `record_query()` after each run (best-effort, capped history).
+Anonymous throughout — nothing identifying is stored.
 
 ### AI Analyst
 `POST /api/ai/ask {question}` →

@@ -176,6 +176,57 @@ textarea { font-family: var(--mono); font-size: 13px; resize: vertical; min-heig
 .metric-big { font-size: 1.5rem; font-weight: 680; font-variant-numeric: tabular-nums; }
 .win { color: var(--success); font-weight: 700; }
 
+/* ---------- guided tour ---------- */
+.tour-root { position: fixed; inset: 0; z-index: 9999; }
+.tour-scrim { position: absolute; inset: 0; background: rgba(12, 17, 29, 0.55); }
+.tour-spotlight {
+  position: fixed;
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(12, 17, 29, 0.58);
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  pointer-events: none;
+  transition: top .18s ease, left .18s ease, width .18s ease, height .18s ease;
+}
+.tour-card {
+  position: fixed;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.28);
+  padding: 18px 18px 14px;
+  pointer-events: auto;
+}
+.tour-card h3 { margin: 6px 0 6px; font-size: 1.05rem; }
+.tour-card p { margin: 0 0 12px; color: var(--text); font-size: 13.5px; line-height: 1.5; }
+.tour-step { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.tour-x {
+  position: absolute; top: 8px; right: 8px; border: none; background: transparent;
+  color: var(--text-muted); font-size: 13px; padding: 4px 7px; border-radius: 6px;
+}
+.tour-x:hover { background: var(--surface-2); }
+.tour-dots { display: flex; gap: 5px; margin-bottom: 12px; }
+.tour-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+.tour-dots span.on { background: var(--primary); }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; }
+.tour-skip { border: none; background: transparent; color: var(--text-muted); padding: 8px 4px; }
+.tour-skip:hover { background: transparent; color: var(--text); }
+
+.tourbtn {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 12.5px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.tourbtn:hover { background: var(--surface-2); }
+
+.session-badge {
+  font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.session-badge .swatch { width: 8px; height: 8px; border-radius: 2px; background: var(--primary); }
+
 @media (max-width: 1080px) {
   .grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
   .grid.cols-3 { grid-template-columns: repeat(2, 1fr); }

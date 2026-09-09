@@ -13,6 +13,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${BASE}${path}`, {
       headers: { "Content-Type": "application/json" },
+      credentials: "include", // send/receive the anonymous session cookie
       ...init,
     });
   } catch (e) {
@@ -65,4 +66,17 @@ export const api = {
 
   dataQuality: () => request<any>("/data-quality/checks"),
   recommendations: () => request<any>("/recommendations"),
+
+  session: () => request<any>("/session"),
+  setTour: (completed: boolean) =>
+    request<any>("/session/tour", {
+      method: "POST",
+      body: JSON.stringify({ completed }),
+    }),
+  setPreferences: (patch: Record<string, unknown>) =>
+    request<any>("/session/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({ patch }),
+    }),
+  clearSession: () => request<any>("/session", { method: "DELETE" }),
 };

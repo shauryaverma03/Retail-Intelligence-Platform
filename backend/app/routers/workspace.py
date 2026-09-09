@@ -1,10 +1,9 @@
 """SQL Analytics Workspace: pick a catalog question or run custom read-only SQL."""
 from __future__ import annotations
 
-import time
+from fastapi import APIRouter, Depends, HTTPException
 
-from fastapi import APIRouter, HTTPException
-
+from .. import session as sess
 from .. import sql_guard
 from ..catalog import all_queries, get_query
 from ..config import get_settings
@@ -39,7 +38,7 @@ def _plan_meta(plan) -> dict:
 
 
 @router.post("/run")
-def run(req: RunQueryRequest) -> dict:
+def run(req: RunQueryRequest, session: sess.Session = Depends(sess.current_session)) -> dict:
     settings = get_settings()
     row_limit = settings.query_row_limit
 
@@ -57,6 +56,7 @@ def run(req: RunQueryRequest) -> dict:
         try:
             validated = sql_guard.validate(req.sql, row_limit)
         except sql_guard.SqlNotAllowed as exc:
+            sess.record_query(session.id, req.sql, source, None, None, ok=False)
             return {
                 "ok": False,
                 "source": source,
@@ -73,6 +73,7 @@ def run(req: RunQueryRequest) -> dict:
     try:
         result = run_readonly(exec_sql, row_limit)
     except Exception as exc:  # noqa: BLE001 - surface DB error to the user
+        sess.record_query(session.id, display_sql, source, None, None, ok=False)
         return {
             "ok": False,
             "source": source,
@@ -80,6 +81,9 @@ def run(req: RunQueryRequest) -> dict:
             "executed_sql": exec_sql,
             "error": f"{type(exc).__name__}: {exc}",
         }
+
+    sess.record_query(session.id, display_sql, source, result.row_count,
+                      result.elapsed_ms, ok=True)
 
     payload = {
         "ok": True,

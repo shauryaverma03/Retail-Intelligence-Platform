@@ -96,3 +96,47 @@ def test_recommendations_have_evidence(client):
     d = client.get("/api/recommendations").json()
     assert d["count"] >= 1
     assert all(r["evidence"] for r in d["recommendations"])
+
+
+# --- session / cookies ------------------------------------------------------
+def test_session_cookie_issued_and_persists(client):
+    r1 = client.get("/api/session")
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["is_new"] is True
+    assert len(body["session_id"]) >= 16
+    assert "xeno_session" in r1.cookies or "xeno_session" in client.cookies
+
+    # second call on the same client reuses the session
+    r2 = client.get("/api/session").json()
+    assert r2["session_id"] == body["session_id"]
+    assert r2["is_new"] is False
+    assert r2["request_count"] >= r1.json()["request_count"]
+
+
+def test_forged_cookie_is_rejected_and_new_session_minted(client):
+    forged = client.__class__(client.app)  # fresh client, no cookies
+    forged.cookies.set("xeno_session", "not-a-real-id.deadbeef")
+    body = forged.get("/api/session").json()
+    assert body["is_new"] is True  # bad signature -> ignored, fresh session
+
+
+def test_workspace_run_is_recorded_in_session_history(client):
+    client.get("/api/session")  # ensure a session
+    run = client.post(
+        "/api/workspace/run",
+        json={"query_id": "07_repeat_purchase_rate", "explain": False},
+    ).json()
+    assert run["ok"]
+    hist = client.get("/api/session").json()["recent_queries"]
+    assert any(h["source"] == "catalog" and h["ok"] for h in hist)
+
+
+def test_tour_and_preferences_persist(client):
+    client.get("/api/session")
+    assert client.post("/api/session/tour", json={"completed": True}).json()["tour_completed"] is True
+    prefs = client.patch(
+        "/api/session/preferences", json={"patch": {"lastPage": "/ai"}}
+    ).json()["preferences"]
+    assert prefs.get("lastPage") == "/ai"
+    assert client.get("/api/session").json()["tour_completed"] is True

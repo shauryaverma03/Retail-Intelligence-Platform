@@ -1,17 +1,20 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
+import { useSession } from "../session";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: "▚", end: true },
-  { to: "/workspace", label: "SQL Workspace", icon: "⌘" },
-  { to: "/performance", label: "Performance Lab", icon: "⚡" },
-  { to: "/customers", label: "Customer Analytics", icon: "◵" },
-  { to: "/ai", label: "AI Analyst", icon: "✦" },
-  { to: "/data-quality", label: "Data Quality", icon: "✓" },
-  { to: "/recommendations", label: "Recommendations", icon: "➤" },
+  { to: "/", label: "Dashboard", icon: "▚", end: true, tour: "nav-dashboard" },
+  { to: "/workspace", label: "SQL Workspace", icon: "⌘", tour: "nav-workspace" },
+  { to: "/performance", label: "Performance Lab", icon: "⚡", tour: "nav-performance" },
+  { to: "/customers", label: "Customer Analytics", icon: "◵", tour: "nav-customers" },
+  { to: "/ai", label: "AI Analyst", icon: "✦", tour: "nav-ai" },
+  { to: "/data-quality", label: "Data Quality", icon: "✓", tour: "nav-dq" },
+  { to: "/recommendations", label: "Recommendations", icon: "➤", tour: "nav-recs" },
 ];
 
 export function Layout({ children, meta }: { children: ReactNode; meta: any }) {
+  const { session, openTour } = useSession();
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -21,7 +24,13 @@ export function Layout({ children, meta }: { children: ReactNode; meta: any }) {
         </div>
         <nav>
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => (isActive ? "active" : "")}>
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.end}
+              data-tour={n.tour}
+              className={({ isActive }) => (isActive ? "active" : "")}
+            >
               <span aria-hidden>{n.icon}</span>
               {n.label}
             </NavLink>
@@ -31,6 +40,13 @@ export function Layout({ children, meta }: { children: ReactNode; meta: any }) {
           v{meta?.version ?? "—"} · AI:{" "}
           {meta?.ai_enabled ? `on (${meta.ai_model})` : "rule-based fallback"}
           <br />
+          {session && (
+            <span className="session-badge" title={`Anonymous session ${session.short_id} · ${session.request_count} requests`}>
+              <span className="swatch" />
+              session {session.short_id}
+            </span>
+          )}
+          <br />
           Synthetic data only.
         </div>
       </aside>
@@ -39,7 +55,12 @@ export function Layout({ children, meta }: { children: ReactNode; meta: any }) {
           <div className="row">
             <strong>Retail &amp; Loyalty Analytics</strong>
           </div>
-          <span className="synthetic">SYNTHETIC DATA · DEMO</span>
+          <div className="row">
+            <button className="tourbtn" data-tour="tour-button" onClick={openTour}>
+              <span aria-hidden>🧭</span> Take a tour
+            </button>
+            <span className="synthetic">SYNTHETIC DATA · DEMO</span>
+          </div>
         </div>
         <div className="content">{children}</div>
       </div>

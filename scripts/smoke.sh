@@ -48,6 +48,38 @@ check "ai rejects bad q"    POST "/ai/ask"            '{"question":"asdf qwerty 
 check "data quality"        GET  "/data-quality/checks" ""  "d['summary']['total'] >= 8"
 check "recommendations"     GET  "/recommendations"   ""  "d['count'] >= 1 and all(r['evidence'] for r in d['recommendations'])"
 
+# --- session / cookie flow (needs a cookie jar) --------------------------------
+CJ="$(mktemp)"
+assert_json() { python3 -c "import sys,json; d=json.load(sys.stdin); assert ($1), 'assertion failed'"; }
+sess_check() {
+  local name="$1" expr="$2"; shift 2
+  if curl -sS -f -c "$CJ" -b "$CJ" "$@" | assert_json "$expr" 2>/dev/null; then
+    echo "PASS  $name"; pass=$((pass+1))
+  else
+    echo "FAIL  $name :: $expr"; fail=$((fail+1))
+  fi
+}
+
+sess_check "session issues cookie" \
+  "d['is_new'] is True and len(d['session_id']) >= 16" \
+  "$API/session"
+grep -q xeno_session "$CJ" && { echo "PASS  session cookie stored"; pass=$((pass+1)); } \
+                           || { echo "FAIL  session cookie stored"; fail=$((fail+1)); }
+sess_check "workspace run recorded on session" \
+  "d['ok'] is True" \
+  -X POST -H 'Content-Type: application/json' \
+  -d '{"query_id":"07_repeat_purchase_rate","explain":false}' "$API/workspace/run"
+sess_check "session history has the query" \
+  "len(d['recent_queries']) >= 1 and d['request_count'] >= 2" \
+  "$API/session"
+sess_check "tour can be completed" \
+  "d['tour_completed'] is True" \
+  -X POST -H 'Content-Type: application/json' -d '{"completed":true}' "$API/session/tour"
+sess_check "preferences merge" \
+  "d['preferences'].get('lastPage') == '/performance'" \
+  -X PATCH -H 'Content-Type: application/json' -d '{"patch":{"lastPage":"/performance"}}' "$API/session/preferences"
+rm -f "$CJ"
+
 echo
 echo "== $pass passed, $fail failed =="
 exit $(( fail > 0 ? 1 : 0 ))

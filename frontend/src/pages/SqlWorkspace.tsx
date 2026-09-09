@@ -6,14 +6,17 @@ import { SqlBlock } from "../components/SqlBlock";
 import { ErrorState, Loading } from "../components/States";
 import { api } from "../api";
 import { useApi, useAction } from "../hooks/useApi";
+import { useSession } from "../session";
 
 export function SqlWorkspace() {
   const { data: catalog, loading, error, reload } = useApi(() => api.catalog(), []);
+  const { session, refresh: refreshSession } = useSession();
   const [sql, setSql] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const run = useAction(api.runQuery);
 
   const queries: any[] = catalog?.queries ?? [];
+  const history: any[] = session?.recent_queries ?? [];
   const active = useMemo(
     () => queries.find((q) => q.id === selected) ?? null,
     [queries, selected],
@@ -25,13 +28,14 @@ export function SqlWorkspace() {
     run.setData(null);
   };
 
-  const execute = (mode: "catalog" | "custom") => {
+  const execute = async (mode: "catalog" | "custom") => {
     if (mode === "catalog" && selected) {
-      run.run({ query_id: selected, explain: true });
+      await run.run({ query_id: selected, explain: true });
     } else {
       setSelected(null);
-      run.run({ sql, explain: true });
+      await run.run({ sql, explain: true });
     }
+    refreshSession(); // pull the updated session query history
   };
 
   const res = run.data;
@@ -41,7 +45,7 @@ export function SqlWorkspace() {
       <PageHeader title="SQL Analytics Workspace">
         Pick a reviewed analytical question or write your own. Custom SQL is
         parsed, restricted to a table allow-list, and executed read-only with a
-        statement timeout.
+        statement timeout. Queries you run are saved to this session.
       </PageHeader>
 
       {loading ? (
@@ -50,26 +54,63 @@ export function SqlWorkspace() {
         <ErrorState message={error} onRetry={reload} />
       ) : (
         <div className="grid" style={{ gridTemplateColumns: "300px 1fr", gap: 16 }}>
-          <Card title="Question catalog" sub={`${queries.length}`}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {queries.map((q) => (
-                <button
-                  key={q.id}
-                  onClick={() => pickCatalog(q)}
-                  className={selected === q.id ? "primary" : ""}
-                  style={{ textAlign: "left", padding: "8px 10px" }}
-                >
-                  <div style={{ fontWeight: 650 }}>{q.name}</div>
-                  <div
-                    className={selected === q.id ? "" : "muted"}
-                    style={{ fontSize: 12, fontWeight: 400 }}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Card title="Question catalog" sub={`${queries.length}`}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {queries.map((q) => (
+                  <button
+                    key={q.id}
+                    onClick={() => pickCatalog(q)}
+                    className={selected === q.id ? "primary" : ""}
+                    style={{ textAlign: "left", padding: "8px 10px" }}
                   >
-                    {q.question}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </Card>
+                    <div style={{ fontWeight: 650 }}>{q.name}</div>
+                    <div
+                      className={selected === q.id ? "" : "muted"}
+                      style={{ fontSize: 12, fontWeight: 400 }}
+                    >
+                      {q.question}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+
+            <Card title="Session history" sub={`${history.length}`}>
+              {history.length === 0 ? (
+                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                  Queries you run this session show up here. Click one to reload it.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {history.map((h) => (
+                    <button
+                      key={h.id}
+                      onClick={() => {
+                        setSelected(null);
+                        setSql(h.sql);
+                        run.setData(null);
+                      }}
+                      style={{ textAlign: "left", padding: "7px 9px" }}
+                      title={h.sql}
+                    >
+                      <div className="mono" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {h.sql.replace(/\s+/g, " ").slice(0, 60)}
+                      </div>
+                      <div className="row" style={{ gap: 5, marginTop: 3 }}>
+                        <span className={`pill ${h.ok ? "" : "bad"}`} style={{ fontSize: 10 }}>{h.source}</span>
+                        {h.ok ? (
+                          <span className="pill" style={{ fontSize: 10 }}>{h.row_count} rows · {h.execution_ms} ms</span>
+                        ) : (
+                          <span className="pill bad" style={{ fontSize: 10 }}>rejected</span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {active && (

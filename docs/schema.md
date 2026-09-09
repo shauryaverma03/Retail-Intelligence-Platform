@@ -90,6 +90,35 @@ erDiagram
   }
 ```
 
+### Session tables (not part of the retail model)
+
+```mermaid
+erDiagram
+  sessions ||--o{ session_queries : records
+  sessions {
+    text        session_id PK
+    timestamptz created_at
+    timestamptz last_seen_at
+    boolean     tour_completed
+    jsonb       preferences
+    bigint      request_count
+  }
+  session_queries {
+    bigint      id PK
+    text        session_id FK
+    text        sql
+    text        source "catalog|custom"
+    int         row_count "nullable"
+    float8      execution_ms "nullable"
+    boolean     ok
+    timestamptz created_at
+  }
+```
+
+Anonymous, cookie-driven (`xeno_session`, HMAC-signed, HttpOnly). Created in
+`db/schema.sql` and also idempotently by the API on startup, so existing volumes
+pick them up without a migration. No personal data is stored.
+
 ## Conventions
 
 - **Money**: `NUMERIC(10,2)` / `NUMERIC(12,2)`, never float.

@@ -41,6 +41,18 @@ class Settings(BaseSettings):
     dashboard_cache_ttl_s: int = Field(default=60, alias="DASHBOARD_CACHE_TTL_S")
     query_catalog_dir: str = Field(default="db/queries", alias="QUERY_CATALOG_DIR")
 
+    # --- sessions / cookies -------------------------------------------------
+    # Anonymous, HMAC-signed session cookie. No login, no PII -- just enough to
+    # remember tour progress, UI preferences and this session's query history.
+    session_secret: str = Field(
+        default="dev-only-insecure-session-secret-change-me", alias="SESSION_SECRET"
+    )
+    session_cookie_name: str = Field(default="xeno_session", alias="SESSION_COOKIE_NAME")
+    session_cookie_secure: bool = Field(default=False, alias="SESSION_COOKIE_SECURE")
+    session_cookie_samesite: str = Field(default="lax", alias="SESSION_COOKIE_SAMESITE")
+    session_ttl_days: int = Field(default=30, alias="SESSION_TTL_DAYS")
+    session_query_history: int = Field(default=25, alias="SESSION_QUERY_HISTORY")
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

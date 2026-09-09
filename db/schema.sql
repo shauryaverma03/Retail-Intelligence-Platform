@@ -136,6 +136,34 @@ CREATE TABLE etl_runs (
 );
 COMMENT ON TABLE etl_runs IS 'Synthetic ETL run history.';
 
+-- -----------------------------------------------------------------------------
+-- sessions  (anonymous, cookie-based; also created idempotently by the API on
+--            startup so existing databases pick them up without a migration)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id      TEXT PRIMARY KEY,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    tour_completed  BOOLEAN     NOT NULL DEFAULT FALSE,
+    preferences     JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    request_count   BIGINT      NOT NULL DEFAULT 0
+);
+COMMENT ON TABLE sessions IS 'Anonymous browser sessions (HMAC-signed cookie). No PII.';
+
+CREATE TABLE IF NOT EXISTS session_queries (
+    id           BIGSERIAL PRIMARY KEY,
+    session_id   TEXT        NOT NULL REFERENCES sessions (session_id) ON DELETE CASCADE,
+    sql          TEXT        NOT NULL,
+    source       TEXT        NOT NULL,   -- catalog | custom
+    row_count    INTEGER,
+    execution_ms DOUBLE PRECISION,
+    ok           BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_session_queries_session
+    ON session_queries (session_id, created_at DESC);
+COMMENT ON TABLE session_queries IS 'Per-session SQL Workspace history (capped).';
+
 COMMIT;
 
 -- =============================================================================

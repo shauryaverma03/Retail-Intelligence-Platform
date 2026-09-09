@@ -42,6 +42,18 @@ the business outcome behind each number.**
 | **Data Quality** | 12 SQL checks: missing values, duplicate IDs, invalid/future dates, duplicate orders, orphaned rows, freshness, ETL pipeline status | `services/data_quality.py` |
 | **Recommendations** | Each recommendation is generated from a query run during the request; the numbers in "Evidence" are real | `services/recommendations.py` |
 
+Plus, on every page:
+
+- **Anonymous session** — a first visit mints an HMAC-signed, HttpOnly `xeno_session`
+  cookie (no login, no PII). The server keeps a small row per session: tour
+  progress, UI preferences, and a capped history of the queries you ran in the
+  SQL Workspace (shown in the "Session history" panel there). `backend/app/session.py`,
+  `routers/session.py`.
+- **Guided tour** — a 9-step product walkthrough (`components/Tour.tsx`) that opens
+  automatically on a fresh session and navigates you through each section. Replay
+  any time from **"Take a tour"** in the top bar; "seen it" is remembered on the
+  session.
+
 ---
 
 ## Architecture
@@ -225,6 +237,10 @@ The Performance Lab benchmarks these live; the write-ups (with sample
 The AI Analyst runs generated SQL through the **same** guard and never executes
 SQL that fails it.
 
+The session cookie (`xeno_session`) is **HttpOnly** (not readable from JS),
+`SameSite=Lax`, and its value is `<random-id>.<HMAC-SHA256>` so it can't be
+forged. It carries no personal data — just an id pointing at an anonymous row.
+
 ---
 
 ## API
@@ -292,14 +308,16 @@ xeno/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py  config.py  db.py  sql_guard.py  schema_context.py  catalog.py
-│   │   ├── routers/          # one module per feature area
+│   │   ├── session.py        # anonymous signed-cookie sessions + query history
+│   │   ├── routers/          # one module per feature area (+ session)
 │   │   └── services/         # metrics · perf_lab · ai_analyst · data_quality · recommendations
 │   └── tests/
 ├── frontend/
 │   └── src/
 │       ├── pages/            # Dashboard, SqlWorkspace, PerformanceLab, CustomerAnalytics,
 │       │                     #   AiAnalyst, DataQuality, Recommendations
-│       ├── components/       # Card, StatTile, DataTable, SqlBlock, ChartCard, …
+│       ├── components/       # Card, StatTile, DataTable, SqlBlock, ChartCard, Tour, …
+│       ├── session.tsx       # SessionProvider / useSession + tour open-state
 │       └── hooks/useApi.ts
 ├── docs/                     # architecture · schema · api · optimization-examples · deployment
 └── scripts/smoke.sh

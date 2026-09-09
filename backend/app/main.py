@@ -23,8 +23,10 @@ from .routers import (
     meta,
     performance,
     recommendations,
+    session,
     workspace,
 )
+from . import session as session_svc
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +39,11 @@ log = logging.getLogger("xenopulse")
 async def lifespan(app: FastAPI):
     open_pools()
     n = len(load_catalog())
+    try:
+        session_svc.ensure_tables()
+        session_svc.prune_expired()
+    except Exception:  # noqa: BLE001 - don't block startup on the session tables
+        log.exception("session table setup failed")
     log.info("XenoPulse %s started. %d catalog queries loaded. AI=%s",
              __version__, n, get_settings().ai_enabled)
     try:
@@ -58,7 +65,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origin_list,
-    allow_credentials=False,
+    allow_credentials=True,          # required for the session cookie to cross origins in dev
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -74,7 +81,8 @@ async def unhandled(request: Request, exc: Exception):  # noqa: ANN001
 
 
 API = "/api"
-for r in (meta, dashboard, workspace, performance, customers, ai, data_quality, recommendations):
+for r in (meta, dashboard, workspace, performance, customers, ai,
+          data_quality, recommendations, session):
     app.include_router(r.router, prefix=API)
 
 
