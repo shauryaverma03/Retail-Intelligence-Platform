@@ -100,7 +100,7 @@ WHERE o.customer_id BETWEEN 1000 AND 3000
 """
 
 _SELECT_STAR_GOOD = """
-SELECT o.order_id, o.customer_id, o.net_amount
+SELECT o.customer_id, o.status, o.net_amount, o.order_date
 FROM orders o
 WHERE o.customer_id BETWEEN 1000 AND 3000
   AND o.status = 'completed'
