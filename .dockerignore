@@ -1,0 +1,13 @@
+# Build context is the repo root (backend/Dockerfile references backend/ and db/).
+# Keep the context small.
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.venv
+**/venv
+frontend/dist
+.git
+.venv-test
+*.log
+.env
