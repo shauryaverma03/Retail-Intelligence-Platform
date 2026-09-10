@@ -1,0 +1,53 @@
+# Production overlay. Use together with the root compose file:
+#
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+#
+# What it changes vs local:
+#   * adds Caddy for automatic HTTPS on 80/443 (edit deploy/Caddyfile with your domain)
+#   * stops publishing Postgres (5432) and the raw frontend/backend ports to the host
+#   * marks the session cookie Secure and points CORS at your real origin
+#   * restart: always on every service
+#
+# Required in .env (see .env.example):
+#   POSTGRES_PASSWORD   strong value
+#   SESSION_SECRET      python -c "import secrets; print(secrets.token_urlsafe(48))"
+#   PUBLIC_ORIGIN       https://xenopulse.example.com
+#   ANTHROPIC_API_KEY   optional
+
+services:
+  db:
+    ports: !reset []                # do not expose the database to the internet
+    restart: always
+
+  backend:
+    environment:
+      CORS_ORIGINS: ${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN in .env}
+      SESSION_COOKIE_SECURE: "true"
+    expose:
+      - "8000"
+    ports: !reset []                # reached only via Caddy
+    restart: always
+
+  frontend:
+    expose:
+      - "80"
+    ports: !reset []                # reached only via Caddy
+    restart: always
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: always
+
+volumes:
+  caddy_data:
+  caddy_config:

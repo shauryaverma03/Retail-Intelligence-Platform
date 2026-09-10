@@ -1,0 +1,25 @@
+# Caddy reverse proxy — automatic HTTPS (Let's Encrypt).
+# Replace xenopulse.example.com with your domain (DNS A record -> server IP).
+#
+# Everything is same-origin: the browser only ever talks to https://<domain>,
+# Caddy serves the SPA and proxies /api/* to the backend container.
+
+xenopulse.example.com {
+    encode zstd gzip
+
+    # API -> backend container
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # everything else -> the frontend container (nginx serving the built SPA)
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}

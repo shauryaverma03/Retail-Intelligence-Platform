@@ -284,10 +284,21 @@ runs against a live DB and self-skips if one isn't reachable.
 
 ## Deployment
 
-Container images for `backend` (uvicorn) and `frontend` (nginx, proxies `/api`).
-Any container host works — compose, ECS, Fly.io, Render, a single VM. Secrets
-come only from environment variables. Step-by-step:
-[`docs/deployment.md`](docs/deployment.md).
+Secrets come only from environment variables; nothing is baked into an image.
+
+**VPS + HTTPS (recommended)** — a `deploy/` overlay adds a Caddy reverse proxy
+(automatic Let's Encrypt), hides Postgres / raw app ports, and sets the session
+cookie `Secure`:
+
+```bash
+cp .env.example .env              # set POSTGRES_PASSWORD, SESSION_SECRET, PUBLIC_ORIGIN
+nano deploy/Caddyfile             # your domain
+docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+```
+
+Also works on ECS, Fly.io, Render/Railway (managed Postgres + a web service +
+a static site), or a plain VM. Full step-by-step, hardening checklist and the
+config reference: [`docs/deployment.md`](docs/deployment.md).
 
 ---
 

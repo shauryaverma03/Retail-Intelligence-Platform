@@ -7,6 +7,47 @@ baked into an image.
 
 ---
 
+## 0. Deploy to a VPS with HTTPS (recommended, ~15 min)
+
+A `deploy/` overlay adds a **Caddy** reverse proxy (automatic Let's Encrypt HTTPS),
+stops publishing Postgres / raw app ports, and flips the session cookie to
+`Secure`.
+
+**Prereqs:** a small Linux server (1–2 vCPU, 2 GB RAM, ~5 GB disk), a domain with
+an `A` record pointing at the server IP, Docker + Compose installed.
+
+```bash
+# on the server
+git clone <your-repo> xenopulse && cd xenopulse
+
+cp .env.example .env
+nano .env            # set the four values below
+
+nano deploy/Caddyfile   # replace xenopulse.example.com with your domain
+
+docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+docker compose logs -f db     # wait for "database system is ready" (seed ~1–3 min)
+./scripts/smoke.sh https://your-domain/api
+```
+
+`.env` must contain:
+
+| var | value |
+|---|---|
+| `POSTGRES_PASSWORD` | a strong random string |
+| `SESSION_SECRET` | `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `PUBLIC_ORIGIN` | `https://your-domain` (exact, no trailing slash) |
+| `ANTHROPIC_API_KEY` | optional — enables real NL→SQL |
+
+Open `https://your-domain`. Caddy fetches a certificate on first hit. Redeploy
+after a code change with the same `up -d --build` command; the `pgdata` volume is
+untouched.
+
+Ports on the host afterwards: only **80** and **443** (Caddy). Postgres, backend
+and frontend are reachable only on the internal Docker network.
+
+---
+
 ## 1. Docker Compose (single host / demo)
 
 ```bash
