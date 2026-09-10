@@ -7,6 +7,25 @@ export function Loading({ label = "Loading…" }: { label?: string }) {
   );
 }
 
+/** Full-screen boot splash shown until the API responds (handles free-tier cold start). */
+export function BootSplash({ slow }: { slow: boolean }) {
+  return (
+    <div className="boot">
+      <div className="boot-mark">
+        <span className="dot" />
+        <b>XenoPulse</b>
+      </div>
+      <div className="boot-bar"><span /></div>
+      <p className="boot-msg">
+        {slow
+          ? "The free host is waking up — this first load can take up to a minute."
+          : "Starting up…"}
+      </p>
+      <p className="boot-sub">Retail &amp; Loyalty Analytics · synthetic data</p>
+    </div>
+  );
+}
+
 export function ErrorState({
   message,
   onRetry,

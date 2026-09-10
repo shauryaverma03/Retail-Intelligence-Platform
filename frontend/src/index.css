@@ -270,6 +270,38 @@ textarea { font-family: var(--mono); font-size: 13px; resize: vertical; min-heig
 }
 .state.error { color: var(--danger); }
 
+/* boot splash */
+.boot {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; text-align: center; padding: 24px;
+  background:
+    radial-gradient(900px 500px at 50% -10%, var(--bg-tint-1), transparent 60%),
+    var(--bg);
+  animation: fadeIn 0.25s ease both;
+}
+.boot-mark { display: flex; align-items: center; gap: 11px; font-size: 1.35rem; font-weight: 750; letter-spacing: -0.01em; }
+.boot-mark .dot {
+  width: 13px; height: 13px; border-radius: 5px;
+  background: linear-gradient(135deg, #4d84ff, #8b6bff);
+  animation: dotPulse 2.4s ease-in-out infinite;
+}
+.boot-bar {
+  width: 220px; height: 4px; border-radius: 999px; overflow: hidden;
+  background: var(--surface-3);
+}
+.boot-bar span {
+  display: block; height: 100%; width: 40%; border-radius: 999px;
+  background: linear-gradient(90deg, #4d84ff, #8b6bff);
+  animation: bootSlide 1.15s var(--ease-out) infinite;
+}
+@keyframes bootSlide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+.boot-msg { margin: 0; color: var(--text); font-weight: 550; max-width: 34ch; }
+.boot-sub { margin: 0; color: var(--text-muted); font-size: 12px; }
+
 /* skeleton loaders */
 .skeleton {
   background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);

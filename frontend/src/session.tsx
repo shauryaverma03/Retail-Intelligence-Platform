@@ -43,9 +43,26 @@ interface SessionCtx {
   tourOpen: boolean;
   openTour: () => void;
   closeTour: (completed: boolean) => void;
+  markBooted: () => void;
 }
 
 const Ctx = createContext<SessionCtx | null>(null);
+
+const TOUR_SEEN_KEY = "xeno_tour_seen";
+const tourSeenLocally = () => {
+  try {
+    return localStorage.getItem(TOUR_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const rememberTourSeen = () => {
+  try {
+    localStorage.setItem(TOUR_SEEN_KEY, "1");
+  } catch {
+    /* private mode / storage disabled */
+  }
+};
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -53,6 +70,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   const [autoChecked, setAutoChecked] = useState(false);
+  const [booted, setBooted] = useState(false);
+
+  const markBooted = useCallback(() => setBooted(true), []);
 
   const refresh = useCallback(async () => {
     try {
@@ -70,14 +90,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
-  // auto-open the tour once for a session that hasn't seen it
+  // Auto-open the tour once — only after the app has actually booted, only if
+  // neither the server session nor this browser has seen it, and after a short
+  // beat so it never pops over a still-loading page.
   useEffect(() => {
-    if (autoChecked || loading || !session) return;
+    if (autoChecked || loading || !session || !booted) return;
     setAutoChecked(true);
-    if (!session.tour_completed) setTourOpen(true);
-  }, [autoChecked, loading, session]);
+    if (session.tour_completed || tourSeenLocally()) return;
+    const t = setTimeout(() => setTourOpen(true), 1100);
+    return () => clearTimeout(t);
+  }, [autoChecked, loading, session, booted]);
 
   const completeTour = useCallback(async () => {
+    rememberTourSeen(); // survives even if the session cookie doesn't persist
     try {
       await api.setTour(true);
     } catch {
@@ -125,8 +150,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       tourOpen,
       openTour,
       closeTour,
+      markBooted,
     }),
-    [session, loading, error, refresh, completeTour, setPreference, clearSession, tourOpen, openTour, closeTour],
+    [session, loading, error, refresh, completeTour, setPreference, clearSession, tourOpen, openTour, closeTour, markBooted],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
