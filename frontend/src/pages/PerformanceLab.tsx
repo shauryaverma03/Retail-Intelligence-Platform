@@ -4,7 +4,7 @@ import { ChartCard } from "../components/ChartCard";
 import { DataTable } from "../components/DataTable";
 import { PageHeader } from "../components/Layout";
 import { SqlBlock } from "../components/SqlBlock";
-import { ErrorState, Loading } from "../components/States";
+import { ErrorState, SkeletonList } from "../components/States";
 import { api } from "../api";
 import { useAction, useApi } from "../hooks/useApi";
 
@@ -14,7 +14,7 @@ export function PerformanceLab() {
   const scaling = useAction(api.scalingBenchmark);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  if (loading) return <Loading />;
+  if (loading) return <SkeletonList rows={5} />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
 
   const scenarios: any[] = data?.scenarios ?? [];
@@ -29,7 +29,7 @@ export function PerformanceLab() {
         straight from the planner.
       </PageHeader>
 
-      <div className="grid" style={{ gap: 12 }}>
+      <div className="grid stagger" style={{ gap: 12 }}>
         {scenarios.map((s) => (
           <Card
             key={s.id}

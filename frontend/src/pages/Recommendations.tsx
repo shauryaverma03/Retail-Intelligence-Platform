@@ -1,13 +1,13 @@
 import { PageHeader } from "../components/Layout";
 import { RecommendationCard } from "../components/RecommendationCard";
-import { ErrorState, Loading } from "../components/States";
+import { ErrorState, SkeletonList } from "../components/States";
 import { api } from "../api";
 import { useApi } from "../hooks/useApi";
 
 export function Recommendations() {
   const { data, loading, error, reload } = useApi(() => api.recommendations(), []);
 
-  if (loading) return <Loading label="Deriving recommendations from live SQL…" />;
+  if (loading) return <SkeletonList rows={4} />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return <ErrorState message="No recommendations." onRetry={reload} />;
 
@@ -19,7 +19,7 @@ export function Recommendations() {
         {data.elapsed_ms} ms.
       </PageHeader>
 
-      <div className="grid" style={{ gap: 14 }}>
+      <div className="grid stagger" style={{ gap: 14 }}>
         {data.recommendations.map((r: any) => (
           <RecommendationCard key={r.id} rec={r} />
         ))}

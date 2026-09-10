@@ -18,11 +18,11 @@ export function Layout({ children, meta }: { children: ReactNode; meta: any }) {
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">
+        <div className="brand animate-in">
           <span className="dot" />
           <b>XenoPulse</b>
         </div>
-        <nav>
+        <nav className="stagger">
           {NAV.map((n) => (
             <NavLink
               key={n.to}

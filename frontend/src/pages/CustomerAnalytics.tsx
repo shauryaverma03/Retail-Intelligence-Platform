@@ -66,8 +66,10 @@ function AnalysisView({ data, tab }: { data: any; tab: string }) {
           kind="bar"
           data={rows.map((r) => ({ ...r, segment_lifetime_net: num(r.segment_lifetime_net) }))}
           xKey="segment"
-          series={[{ key: "segment_lifetime_net", label: "Lifetime net (₹)" }]}
+          series={[{ key: "segment_lifetime_net", label: "Lifetime net", color: "#7c5cff" }]}
           height={280}
+          yPrefix="₹"
+          yCompact
         />
       );
     if (tab === "cohort")
@@ -108,7 +110,7 @@ function AnalysisView({ data, tab }: { data: any; tab: string }) {
           kind="bar"
           data={rows.map((r) => ({ ...r, repeat_rate_pct: num(r.repeat_rate_pct) }))}
           xKey="acquisition_channel"
-          series={[{ key: "repeat_rate_pct", label: "Repeat rate %", color: "#1a8f5b" }]}
+          series={[{ key: "repeat_rate_pct", label: "Repeat rate %", color: "#12885a" }]}
         />
       );
     if (tab === "campaign_by_segment")
@@ -118,7 +120,9 @@ function AnalysisView({ data, tab }: { data: any; tab: string }) {
           kind="bar"
           data={rows.map((r) => ({ ...r, revenue: num(r.revenue) }))}
           xKey="segment"
-          series={[{ key: "revenue", label: "Revenue (₹)" }]}
+          series={[{ key: "revenue", label: "Revenue", color: "#0ea5a5" }]}
+          yPrefix="₹"
+          yCompact
         />
       );
     return null;

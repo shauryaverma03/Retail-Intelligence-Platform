@@ -5,16 +5,23 @@ export function Card({
   sub,
   right,
   className = "",
+  accent,
+  animate = true,
   children,
 }: {
   title?: ReactNode;
   sub?: ReactNode;
   right?: ReactNode;
   className?: string;
+  accent?: string;
+  animate?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className={`card ${className}`}>
+    <div
+      className={`card ${animate ? "animate-in" : ""} ${className}`}
+      style={accent ? ({ "--accent": accent } as React.CSSProperties) : undefined}
+    >
       {(title || right) && (
         <div className="card-head">
           <h3>

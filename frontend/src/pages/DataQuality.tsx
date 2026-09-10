@@ -1,7 +1,7 @@
 import { Card } from "../components/Card";
 import { DataTable } from "../components/DataTable";
 import { PageHeader } from "../components/Layout";
-import { ErrorState, Loading } from "../components/States";
+import { ErrorState, SkeletonList } from "../components/States";
 import { StatTile } from "../components/StatTile";
 import { api } from "../api";
 import { useApi } from "../hooks/useApi";
@@ -12,7 +12,7 @@ const statusPill = (s: string) =>
 export function DataQuality() {
   const { data, loading, error, reload } = useApi(() => api.dataQuality(), []);
 
-  if (loading) return <Loading label="Running data-quality checks…" />;
+  if (loading) return <SkeletonList rows={6} />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return <ErrorState message="No data." onRetry={reload} />;
 
@@ -25,14 +25,14 @@ export function DataQuality() {
         integrity, timeliness and pipeline status. Ran in {data.elapsed_ms} ms.
       </PageHeader>
 
-      <div className="grid cols-4">
+      <div className="grid cols-4 stagger">
         <StatTile label="Health score" value={`${s.health_score}%`} />
         <StatTile label="Passed" value={s.passed} />
         <StatTile label="Failed" value={s.failed} />
         <StatTile label="Warnings" value={s.warnings} />
       </div>
 
-      <div className="grid" style={{ gap: 12, marginTop: 16 }}>
+      <div className="grid stagger" style={{ gap: 12, marginTop: 16 }}>
         {data.checks.map((c: any) => (
           <Card
             key={c.id}
