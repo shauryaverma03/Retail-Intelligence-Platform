@@ -7,7 +7,13 @@ import { useApi } from "../hooks/useApi";
 export function Recommendations() {
   const { data, loading, error, reload } = useApi(() => api.recommendations(), []);
 
-  if (loading) return <SkeletonList rows={4} />;
+  if (loading)
+    return (
+      <SkeletonList
+        rows={4}
+        hint="Computing recommendations from live SQL — first load can take a few seconds, cached for a minute after."
+      />
+    );
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return <ErrorState message="No recommendations." onRetry={reload} />;
 

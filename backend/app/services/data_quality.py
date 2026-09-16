@@ -7,9 +7,13 @@ threshold. Nothing is faked -- if the synthetic data is clean, the check passes.
 from __future__ import annotations
 
 import time
-from typing import Any
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable
 
 from ..db import fetch_all, fetch_one
+from ..config import get_settings
+
+_cache: dict[str, Any] = {"ts": 0.0, "data": None}
 
 
 def _check(cur_id, title, category, severity, sql, threshold, status_key="metric",
@@ -55,12 +59,55 @@ def _pct_check(cur_id, title, category, severity, sql,
     }
 
 
-def run_all_checks() -> dict[str, Any]:
-    started = time.perf_counter()
-    checks: list[dict[str, Any]] = []
+def _freshness_check() -> dict[str, Any]:
+    freshness = fetch_one(
+        """
+        SELECT max(order_date)                        AS latest_order,
+               round(extract(epoch FROM now() - max(order_date)) / 3600.0, 1) AS hours_since_latest_order,
+               (SELECT max(event_time) FROM campaign_events) AS latest_event
+        FROM orders
+        """
+    ) or {}
+    fresh_hours = float(freshness.get("hours_since_latest_order") or 0)
+    return {
+        "id": "data_freshness",
+        "title": "Data freshness (latest order recency)",
+        "category": "timeliness",
+        "severity": "medium",
+        "metric": fresh_hours,
+        "threshold": 720,  # 30 days -- synthetic data has a fixed 'now'
+        "status": "pass" if fresh_hours <= 720 else "warn",
+        "detail": [freshness],
+    }
 
-    # 1. Missing values (graded on % -- some sparsity is normal) ---------------
-    checks.append(_pct_check(
+
+def _pipeline_status_check() -> dict[str, Any]:
+    pipeline = fetch_all(
+        """
+        SELECT DISTINCT ON (pipeline)
+               pipeline, status, started_at, finished_at, rows_loaded, message
+        FROM etl_runs
+        ORDER BY pipeline, started_at DESC
+        """
+    )
+    failed = [p for p in pipeline if p["status"] != "success"]
+    return {
+        "id": "pipeline_status",
+        "title": "ETL pipeline status (latest run per pipeline)",
+        "category": "pipeline",
+        "severity": "high",
+        "metric": len(failed),
+        "threshold": 0,
+        "status": "pass" if not failed else "fail",
+        "detail": pipeline,
+    }
+
+
+# Each check hits the DB independently, so they're run concurrently on the
+# pool (psycopg releases the GIL while waiting on the network/server) instead
+# of paying ~12 sequential round trips back to back.
+_CHECK_TASKS: list[Callable[[], dict[str, Any]]] = [
+    lambda: _pct_check(
         "missing_customer_email", "Customers missing email", "completeness", "medium",
         """
         SELECT count(*) AS metric,
@@ -68,8 +115,8 @@ def run_all_checks() -> dict[str, Any]:
         FROM customers WHERE email IS NULL OR email = ''
         """,
         warn_pct=2.0, fail_pct=20.0,
-    ))
-    checks.append(_pct_check(
+    ),
+    lambda: _pct_check(
         "missing_customer_birth_year", "Customers missing birth year", "completeness", "low",
         """
         SELECT count(*) AS metric,
@@ -77,18 +124,16 @@ def run_all_checks() -> dict[str, Any]:
         FROM customers WHERE birth_year IS NULL
         """,
         warn_pct=5.0, fail_pct=40.0,
-    ))
-    checks.append(_check(
+    ),
+    lambda: _check(
         "orders_zero_amount", "Completed orders with zero net amount", "validity", "high",
         """
         SELECT count(*) AS metric FROM orders
         WHERE status = 'completed' AND net_amount <= 0
         """,
         threshold=0,
-    ))
-
-    # 2. Duplicate IDs / natural keys ------------------------------------
-    checks.append(_check(
+    ),
+    lambda: _check(
         "duplicate_customer_email", "Duplicate customer emails", "uniqueness", "high",
         """
         SELECT COALESCE(sum(c - 1), 0) AS metric FROM (
@@ -103,8 +148,8 @@ def run_all_checks() -> dict[str, Any]:
             GROUP BY lower(email) HAVING count(*) > 1
             ORDER BY count(*) DESC LIMIT 20
         """,
-    ))
-    checks.append(_check(
+    ),
+    lambda: _check(
         "duplicate_sku", "Duplicate product SKUs", "uniqueness", "high",
         """
         SELECT COALESCE(sum(c - 1), 0) AS metric FROM (
@@ -112,10 +157,8 @@ def run_all_checks() -> dict[str, Any]:
         ) d
         """,
         threshold=0,
-    ))
-
-    # 3. Invalid dates ------------------------------------------------------
-    checks.append(_check(
+    ),
+    lambda: _check(
         "order_before_signup", "Orders dated before customer signup", "validity", "high",
         """
         SELECT count(*) AS metric
@@ -129,20 +172,18 @@ def run_all_checks() -> dict[str, Any]:
             WHERE o.order_date::date < c.signup_date
             ORDER BY o.order_id LIMIT 20
         """,
-    ))
-    checks.append(_check(
+    ),
+    lambda: _check(
         "future_order_date", "Orders dated in the future", "validity", "high",
         "SELECT count(*) AS metric FROM orders WHERE order_date > now()",
         threshold=0,
-    ))
-    checks.append(_check(
+    ),
+    lambda: _check(
         "campaign_end_before_start", "Campaigns ending before they start", "validity", "medium",
         "SELECT count(*) AS metric FROM campaigns WHERE end_date < start_date",
         threshold=0,
-    ))
-
-    # 4. Duplicate orders (double-submit) ---------------------------------
-    checks.append(_check(
+    ),
+    lambda: _check(
         "duplicate_orders", "Likely duplicate orders (same customer, timestamp, amount)",
         "uniqueness", "high",
         """
@@ -162,10 +203,8 @@ def run_all_checks() -> dict[str, Any]:
             HAVING count(*) > 1
             ORDER BY count(*) DESC LIMIT 20
         """,
-    ))
-
-    # 5. Referential integrity -------------------------------------------
-    checks.append(_check(
+    ),
+    lambda: _check(
         "orphan_order_items", "Order items pointing at a missing order", "integrity", "high",
         """
         SELECT count(*) AS metric FROM order_items oi
@@ -173,56 +212,30 @@ def run_all_checks() -> dict[str, Any]:
         WHERE o.order_id IS NULL
         """,
         threshold=0,
-    ))
+    ),
+    _freshness_check,
+    _pipeline_status_check,
+]
 
-    # 6. Data freshness -------------------------------------------------
-    freshness = fetch_one(
-        """
-        SELECT max(order_date)                        AS latest_order,
-               round(extract(epoch FROM now() - max(order_date)) / 3600.0, 1) AS hours_since_latest_order,
-               (SELECT max(event_time) FROM campaign_events) AS latest_event
-        FROM orders
-        """
-    ) or {}
-    fresh_hours = float(freshness.get("hours_since_latest_order") or 0)
-    checks.append({
-        "id": "data_freshness",
-        "title": "Data freshness (latest order recency)",
-        "category": "timeliness",
-        "severity": "medium",
-        "metric": fresh_hours,
-        "threshold": 720,  # 30 days -- synthetic data has a fixed 'now'
-        "status": "pass" if fresh_hours <= 720 else "warn",
-        "detail": [freshness],
-    })
 
-    # 7. Pipeline status ------------------------------------------------
-    pipeline = fetch_all(
-        """
-        SELECT DISTINCT ON (pipeline)
-               pipeline, status, started_at, finished_at, rows_loaded, message
-        FROM etl_runs
-        ORDER BY pipeline, started_at DESC
-        """
-    )
-    failed = [p for p in pipeline if p["status"] != "success"]
-    checks.append({
-        "id": "pipeline_status",
-        "title": "ETL pipeline status (latest run per pipeline)",
-        "category": "pipeline",
-        "severity": "high",
-        "metric": len(failed),
-        "threshold": 0,
-        "status": "pass" if not failed else "fail",
-        "detail": pipeline,
-    })
+def run_all_checks(refresh: bool = False) -> dict[str, Any]:
+    ttl = get_settings().dashboard_cache_ttl_s
+    now = time.time()
+    if not refresh and _cache["data"] is not None and now - _cache["ts"] < ttl:
+        return {**_cache["data"], "cached": True}
+
+    started = time.perf_counter()
+    # cap at the app pool's max_size (db.py) so we don't oversubscribe connections
+    with ThreadPoolExecutor(max_workers=min(8, len(_CHECK_TASKS))) as pool:
+        checks = list(pool.map(lambda task: task(), _CHECK_TASKS))
 
     passed = sum(1 for c in checks if c["status"] == "pass")
     failed_n = sum(1 for c in checks if c["status"] == "fail")
     warned = sum(1 for c in checks if c["status"] == "warn")
-    return {
+    data = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+        "cached": False,
         "summary": {
             "total": len(checks),
             "passed": passed,
@@ -239,3 +252,5 @@ def run_all_checks() -> dict[str, Any]:
             "quality page would not be a useful demo)."
         ),
     }
+    _cache.update(ts=time.time(), data=data)
+    return data

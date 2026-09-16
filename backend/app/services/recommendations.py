@@ -9,9 +9,13 @@ a bare claim.
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from ..db import fetch_all, fetch_one
+from ..config import get_settings
+
+_cache: dict[str, Any] = {"ts": 0.0, "data": None}
 
 
 def _fmt_money(v: Any) -> str:
@@ -217,19 +221,33 @@ def _returns_leakage() -> dict[str, Any]:
     }
 
 
-def all_recommendations() -> dict[str, Any]:
+_TASKS = [
+    _at_risk_reactivation,
+    _campaign_spend_efficiency,
+    _channel_repeat_gap,
+    _returns_leakage,
+]
+
+
+def all_recommendations(refresh: bool = False) -> dict[str, Any]:
+    ttl = get_settings().dashboard_cache_ttl_s
+    now = time.time()
+    if not refresh and _cache["data"] is not None and now - _cache["ts"] < ttl:
+        return {**_cache["data"], "cached": True}
+
     started = time.perf_counter()
-    items = [
-        _at_risk_reactivation(),
-        _campaign_spend_efficiency(),
-        _channel_repeat_gap(),
-        _returns_leakage(),
-    ]
-    items = [i for i in items if i]
-    return {
+    # each recommendation is an independent heavy query -- run them concurrently
+    # instead of paying their cost back to back (psycopg releases the GIL on I/O)
+    with ThreadPoolExecutor(max_workers=len(_TASKS)) as pool:
+        items = [i for i in pool.map(lambda task: task(), _TASKS) if i]
+
+    data = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+        "cached": False,
         "count": len(items),
         "recommendations": items,
         "note": "Every figure in 'evidence' was returned by SQL during this request.",
     }
+    _cache.update(ts=time.time(), data=data)
+    return data

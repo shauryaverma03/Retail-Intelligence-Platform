@@ -86,7 +86,7 @@ export function SkeletonDashboard() {
   );
 }
 
-export function SkeletonList({ rows = 5 }: { rows?: number }) {
+export function SkeletonList({ rows = 5, hint }: { rows?: number; hint?: string }) {
   return (
     <div className="route-fade">
       <Skeleton className="skel-line" style={{ width: 200, height: 24, marginBottom: 16 }} />
@@ -99,6 +99,7 @@ export function SkeletonList({ rows = 5 }: { rows?: number }) {
           </div>
         ))}
       </div>
+      {hint && <p className="skel-hint">{hint}</p>}
     </div>
   );
 }

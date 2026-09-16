@@ -12,7 +12,13 @@ const statusPill = (s: string) =>
 export function DataQuality() {
   const { data, loading, error, reload } = useApi(() => api.dataQuality(), []);
 
-  if (loading) return <SkeletonList rows={6} />;
+  if (loading)
+    return (
+      <SkeletonList
+        rows={6}
+        hint="Running 12 SQL checks against the live database — first load can take a few seconds, cached for a minute after."
+      />
+    );
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return <ErrorState message="No data." onRetry={reload} />;
 
