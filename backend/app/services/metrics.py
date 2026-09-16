@@ -15,6 +15,7 @@ Metric definitions (documented so reviewers can audit them):
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from ..db import fetch_all, fetch_one
@@ -215,7 +216,25 @@ def dashboard_summary(refresh: bool = False) -> dict[str, Any]:
         return {**_cache["data"], "cached": True}
 
     started = time.perf_counter()
-    kpis = _kpis()
+    # 7 independent read queries -- run them concurrently instead of paying
+    # their cost back to back (psycopg releases the GIL while waiting on I/O).
+    with ThreadPoolExecutor(max_workers=7) as pool:
+        f_kpis = pool.submit(_kpis)
+        f_retention = pool.submit(_retention_90d)
+        f_campaign_conversion = pool.submit(_campaign_conversion)
+        f_at_risk = pool.submit(_at_risk)
+        f_revenue_trend = pool.submit(_revenue_trend)
+        f_segment_performance = pool.submit(_segment_performance)
+        f_data_freshness = pool.submit(_data_freshness)
+
+        kpis = f_kpis.result()
+        retention_90d = f_retention.result()
+        campaign_conversion = f_campaign_conversion.result()
+        at_risk = f_at_risk.result()
+        revenue_trend = f_revenue_trend.result()
+        segment_performance = f_segment_performance.result()
+        data_freshness = f_data_freshness.result()
+
     revenue_30d = kpis.get("net_revenue_30d") or 0
     revenue_prev_30d = kpis.get("net_revenue_prev_30d") or 0
     mom = None
@@ -229,13 +248,13 @@ def dashboard_summary(refresh: bool = False) -> dict[str, Any]:
         "kpis": {
             **kpis,
             "revenue_mom_growth_pct": mom,
-            **_retention_90d(),
+            **retention_90d,
         },
-        "campaign_conversion": _campaign_conversion(),
-        "at_risk": _at_risk(),
-        "revenue_trend": _revenue_trend(),
-        "segment_performance": _segment_performance(),
-        "data_freshness": _data_freshness(),
+        "campaign_conversion": campaign_conversion,
+        "at_risk": at_risk,
+        "revenue_trend": revenue_trend,
+        "segment_performance": segment_performance,
+        "data_freshness": data_freshness,
         "note": "All figures computed live from synthetic data.",
     }
     _cache.update(ts=time.time(), data=data)
