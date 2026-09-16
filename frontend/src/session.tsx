@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -69,7 +70,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
-  const [autoChecked, setAutoChecked] = useState(false);
+  // Plain ref, not state: this only gates the effect below and must never
+  // itself be a reactive dependency (see the effect for why).
+  const autoCheckedRef = useRef(false);
   const [booted, setBooted] = useState(false);
 
   const markBooted = useCallback(() => setBooted(true), []);
@@ -93,13 +96,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Auto-open the tour once — only after the app has actually booted, only if
   // neither the server session nor this browser has seen it, and after a short
   // beat so it never pops over a still-loading page.
+  //
+  // autoCheckedRef is a ref, not state, on purpose: a state setter here would
+  // sit in this effect's own dependency array, so setting it would re-run the
+  // effect on the next render, fire this effect's cleanup, and clear the
+  // setTimeout below before it ever fires -- the tour would schedule itself
+  // and immediately cancel itself every time, and never actually open.
   useEffect(() => {
-    if (autoChecked || loading || !session || !booted) return;
-    setAutoChecked(true);
+    if (autoCheckedRef.current || loading || !session || !booted) return;
+    autoCheckedRef.current = true;
     if (session.tour_completed || tourSeenLocally()) return;
     const t = setTimeout(() => setTourOpen(true), 1100);
     return () => clearTimeout(t);
-  }, [autoChecked, loading, session, booted]);
+  }, [loading, session, booted]);
 
   const completeTour = useCallback(async () => {
     rememberTourSeen(); // survives even if the session cookie doesn't persist
