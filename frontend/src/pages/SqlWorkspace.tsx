@@ -53,7 +53,7 @@ export function SqlWorkspace() {
       ) : error ? (
         <ErrorState message={error} onRetry={reload} />
       ) : (
-        <div className="grid" style={{ gridTemplateColumns: "300px 1fr", gap: 16 }}>
+        <div className="grid" style={{ gridTemplateColumns: "300px minmax(0, 1fr)", gap: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Card title="Question catalog" sub={`${queries.length}`}>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

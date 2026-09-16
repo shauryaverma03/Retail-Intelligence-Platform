@@ -70,8 +70,12 @@ def run(req: RunQueryRequest, session: sess.Session = Depends(sess.current_sessi
         raise HTTPException(status_code=422, detail="Provide either 'sql' or 'query_id'.")
 
     # ---- execute ----
+    # Catalog queries are reviewed in-repo, not user/AI-typed, so they get the
+    # longer catalog timeout (see db.run_readonly) instead of the tight cap
+    # meant for arbitrary custom/AI SQL.
+    timeout_ms = settings.catalog_statement_timeout_ms if source == "catalog" else None
     try:
-        result = run_readonly(exec_sql, row_limit)
+        result = run_readonly(exec_sql, row_limit, timeout_ms=timeout_ms)
     except Exception as exc:  # noqa: BLE001 - surface DB error to the user
         sess.record_query(session.id, display_sql, source, None, None, ok=False)
         return {

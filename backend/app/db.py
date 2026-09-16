@@ -108,15 +108,22 @@ class ReadOnlyResult:
         }
 
 
-def run_readonly(sql: str, max_rows: int) -> ReadOnlyResult:
+def run_readonly(sql: str, max_rows: int, timeout_ms: int | None = None) -> ReadOnlyResult:
     """Execute already-validated SELECT SQL on the read-only pool.
 
     The SQL is expected to have passed ``sql_guard.validate`` first. This layer
     adds defence in depth: an explicit read-only transaction and a per-statement
     timeout, and it rolls the transaction back no matter what.
+
+    ``timeout_ms`` defaults to ``settings.statement_timeout_ms`` -- the tight
+    cap meant for arbitrary user/AI-supplied SQL. Callers running a specific,
+    pre-reviewed catalog query (db/queries/*.sql, not something a user typed)
+    may pass a larger value: it's the same resource-bounded read-only role and
+    transaction either way, just a longer leash for SQL that's already vetted.
     """
     settings = get_settings()
-    timeout_ms = int(settings.statement_timeout_ms)
+    if timeout_ms is None:
+        timeout_ms = int(settings.statement_timeout_ms)
     with ro_pool.connection() as conn:
         conn.autocommit = False
         with conn.cursor() as cur:

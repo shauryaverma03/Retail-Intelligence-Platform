@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     query_row_limit: int = Field(default=1000, alias="QUERY_ROW_LIMIT")
     statement_timeout_ms: int = Field(default=8000, alias="STATEMENT_TIMEOUT_MS")
     explain_timeout_ms: int = Field(default=30000, alias="EXPLAIN_TIMEOUT_MS")
+    # Pre-reviewed catalog queries (db/queries/*.sql) aren't user/AI-typed SQL,
+    # so they get a longer leash than statement_timeout_ms -- some of them
+    # (e.g. campaign performance by segment) scan the full campaign_events
+    # table and can legitimately run past 8s under load.
+    catalog_statement_timeout_ms: int = Field(default=25000, alias="CATALOG_STATEMENT_TIMEOUT_MS")
 
     # --- AI Analyst -----------------------------------------------------
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")

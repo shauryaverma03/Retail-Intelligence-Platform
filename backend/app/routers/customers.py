@@ -22,15 +22,23 @@ _ANALYSES = {
 
 def _run(qid: str) -> dict:
     cq = get_query(qid)
-    limit = get_settings().query_row_limit
+    settings = get_settings()
+    limit = settings.query_row_limit
     exec_sql = f"SELECT * FROM (\n{cq.sql}\n) AS _q LIMIT {limit}"
-    res = run_readonly(exec_sql, limit)
-    return {
+    base = {
         "id": cq.id,
         "name": cq.name,
         "question": cq.question,
         "techniques": cq.techniques,
         "sql": cq.sql,
+    }
+    try:
+        res = run_readonly(exec_sql, limit, timeout_ms=settings.catalog_statement_timeout_ms)
+    except Exception as exc:  # noqa: BLE001 - surface DB error to the user instead of a 500
+        return {**base, "ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    return {
+        **base,
+        "ok": True,
         "columns": res.columns,
         "rows": res.rows,
         "row_count": res.row_count,
@@ -54,4 +62,4 @@ def analysis(analysis: str) -> dict:
     if not qid or not get_query(qid):
         return {"ok": False, "error": f"Unknown analysis '{analysis}'.",
                 "available": list(_ANALYSES)}
-    return {"ok": True, **_run(qid)}
+    return _run(qid)
